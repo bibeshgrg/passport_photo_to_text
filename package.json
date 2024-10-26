@@ -9,6 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
+    "@mui/material": "^6.1.5",
     "formidable": "^3.5.2",
     "mindee": "^4.17.1",
     "mrz": "^4.2.0",
