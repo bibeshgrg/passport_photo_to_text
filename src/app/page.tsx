@@ -1,4 +1,4 @@
-import ImageToText from "@/components/Passport/PasspordToText";
+import ImageToText from "@/components/Passport/PassportToText2";
 
 export default function Home() {
   return (

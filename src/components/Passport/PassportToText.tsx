@@ -1,5 +1,4 @@
 "use client";
-import Tesseract from 'tesseract.js';
 import { useState } from 'react';
 import Image from 'next/image';
 import { parse as parseMRZ } from 'mrz';
@@ -9,9 +8,10 @@ import { TextField } from '@mui/material';
 interface MRZResult {
   valid: boolean;
   fields: {
-    documentType?: string;
+    documentCode?: string;
     countryCode?: string;
     documentNumber?: string;
+    firstName?: string;
     lastName?: string;
     optional?: string;
     nationality?: string;
@@ -20,7 +20,7 @@ interface MRZResult {
     sex?: string;
     expirationDate?: string;
     birthDate?: string;
-    optional1?: string;
+    birthPlace?: string;
     optional2?: string;
   };
 }
@@ -56,56 +56,74 @@ const ImageToText = () => {
     }
   };
 
-  const sanitizeText = (text: string) => {
-    return text
-      .split('\n')
-      .map((line) => line.replace(/[^A-Z0-9<]/g, ''))
-      .filter((line) => line.length === 44 || line.length === 36);
+  const cleanMRZText = (text: string) => {
+    // Split the text into lines and filter valid MRZ lines
+    const lines = text.split('\n').filter(line => {
+      // Check if the line contains only uppercase letters, digits, or '<'
+      return /^[A-Z0-9<]+$/.test(line) && line.length >= 2; // Assuming MRZ lines are typically long
+    });
+    return lines;
   };
+  
 
+  
+  // Extract MRZ text using OCR.space API
   const extractMRZText = async () => {
     if (!imageFile) return;
-
+  
     setLoading(true);
-
+    setParsedData(null); // Clear previous results
+  
     try {
-      const { data: { text } } = await Tesseract.recognize(imageFile, 'eng', {
-        logger: (m) => console.log(m),
+      const formData = new FormData();
+      formData.append('image', imageFile);
+  
+      const response = await fetch('/api/ocr_parse', {
+        method: 'POST',
+        body: formData,
       });
-
-      console.log("Raw OCR text:", text);
-      
-      const sanitizedLines = sanitizeText(text);
-      if (sanitizedLines.length < 2) {
-        console.error("Extracted text does not contain valid MRZ lines.");
+  
+      const result = await response.json();
+  
+      if (result.error) {
+        console.error('Error:', result.error);
         setParsedData(null);
-        setLoading(false);
         return;
       }
 
-      const parsedMRZ = parseMRZ(sanitizedLines) as MRZResult;
-      const fullMRZLine = sanitizedLines.join('');
+      console.log(result.ParsedResults[0].ParsedText);
 
+  
+      const cleanedMRZLines = cleanMRZText(result.ParsedResults[0].ParsedText);
+      
+      // if (cleanedMRZLines.length < 2) {
+      //   console.error('Not enough valid MRZ lines found.');
+      //   setParsedData(null);
+      //   return;
+      // }
+  
+      const parsedMRZ = parseMRZ(cleanedMRZLines) as MRZResult;
+      const fullMRZLine = cleanedMRZLines.join(' '); // Concatenate cleaned lines
+  
       if (parsedMRZ.valid) {
         const fields = parsedMRZ.fields ?? {};
-
         const selectedFields: Record<string, string | undefined> = {
-          Type: fields.documentType ?? undefined,
+          Type: fields.documentCode ?? undefined,
           "Country Code": fields.countryCode ?? undefined,
           "Passport No": fields.documentNumber ?? undefined,
           Surname: fields.lastName ?? undefined,
-          "Given Names": fields.optional ?? undefined,
+          "Given Names": fields.firstName?.replace(/<+/g, ' ') ?? undefined,
           Nationality: fields.nationality ?? undefined,
           "Personal No": fields.personalNumber ?? undefined,
           Sex: fields.sex ?? undefined,
           "Date of Expiry": formatDate(fields.expirationDate),
           "Date of Birth": formatDate(fields.birthDate),
           "Date of Issue": formatDate(fields.issueDate),
-          "Place of Birth": fields.optional1 ?? undefined,
+          "Place of Birth": fields.birthPlace ?? undefined,
           "ISSUING AUTHORITY": fields.optional2 ?? undefined,
           "Full MRZ Line": fullMRZLine,
         };
-
+  
         setParsedData(selectedFields);
       } else {
         console.error("Invalid MRZ format");
@@ -121,12 +139,12 @@ const ImageToText = () => {
 
   return (
     <div className='px-10 py-10 flex flex-col space-y-10'>
-      <div className='h-auto w-full px-2 py-4 flex justify-center items-center rounded-lg border-dashed border-black border-2 '>
-      {imagePreview && (
-        <div>
-          <Image height={400} width={300} src={imagePreview} alt="Selected" style={{ maxWidth: '100%', height: 'auto' }} />
-        </div>
-      )}
+      <div className='h-auto w-full px-2 py-4 flex justify-center items-center rounded-lg border-dashed border-black border-2'>
+        {imagePreview && (
+          <div>
+            <Image height={400} width={300} src={imagePreview} alt="Selected" style={{ maxWidth: '100%', height: 'auto' }} />
+          </div>
+        )}
       </div>
 
       <div>
@@ -142,21 +160,20 @@ const ImageToText = () => {
         </label>
       </div>
 
-   
       <button className='px-3 py-4 bg-black text-white text-xl rounded-xl' onClick={extractMRZText} disabled={!imageFile || loading}>
         {loading ? 'Scanning...' : 'Scan Passport'}
       </button>
-      <div>
+      
+      <div className='flex flex-col space-y-3'>
         <h3>MRZ Parsed Data:</h3>
         {parsedData ? (
           <div>
             <div className="grid grid-cols-3 gap-4">
               {Object.entries(parsedData).map(([key, value]) => {
-                if (key === "Full MRZ Line") return null; // i am Skipping for the bottom code 
+                if (key === "Full MRZ Line") return null; // Skip for the bottom code 
                 return (
                   <div key={key} className="flex items-center">
                     <TextField
-                      
                       id={`outlined-required-${key}`}
                       label={key}
                       defaultValue={value}
@@ -168,7 +185,6 @@ const ImageToText = () => {
             </div>
             <div className="mt-4"> 
               <TextField
-                
                 id="full-mrz-line"
                 label="Full MRZ Line"
                 defaultValue={parsedData["Full MRZ Line"]}
@@ -177,7 +193,7 @@ const ImageToText = () => {
             </div>
           </div>
         ) : (
-          <p></p>
+          <p>No MRZ data parsed yet.</p>
         )}
       </div>
     </div>
