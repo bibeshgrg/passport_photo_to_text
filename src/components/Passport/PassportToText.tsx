@@ -107,12 +107,14 @@ const ImageToText = () => {
   
       if (parsedMRZ.valid) {
         const fields = parsedMRZ.fields ?? {};
+        console.log("Given Names", fields.firstName?.trim().split(' ')[0] ?? undefined,)
         const selectedFields: Record<string, string | undefined> = {
           Type: fields.documentCode ?? undefined,
           "Country Code": fields.countryCode ?? undefined,
           "Passport No": fields.documentNumber ?? undefined,
           Surname: fields.lastName ?? undefined,
-          "Given Names": fields.firstName?.replace(/<+/g, ' ') ?? undefined,
+          firstName: fields.firstName?.trim().split(' ')[0] ?? undefined,
+
           Nationality: fields.nationality ?? undefined,
           "Personal No": fields.personalNumber ?? undefined,
           Sex: fields.sex ?? undefined,
@@ -125,16 +127,20 @@ const ImageToText = () => {
         };
   
         setParsedData(selectedFields);
+      
       } else {
         console.error("Invalid MRZ format");
         setParsedData(null);
       }
+      
     } catch (error) {
       console.error('Error extracting text:', error);
       setParsedData(null);
     } finally {
       setLoading(false);
     }
+
+    
   };
 
   return (

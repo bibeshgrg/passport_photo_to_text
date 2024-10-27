@@ -7,6 +7,7 @@ import { TextField } from '@mui/material';
 
 // Define an interface for MRZResult
 interface MRZResult {
+  valid: boolean;
   fields: {
     documentCode?: string;
     countryCode?: string;
@@ -76,8 +77,6 @@ const extractMRZText = async () => {
       logger: () => console.log(),
     });
 
-
-
     console.log("Raw OCR text:", text);
 
     const sanitizedLines = sanitizeText(text);
@@ -90,10 +89,10 @@ const extractMRZText = async () => {
 
     // Parse sanitized MRZ lines
     const parsedMRZ = parseMRZ(sanitizedLines) as MRZResult;
-    
     const fullMRZLine = sanitizedLines.join('');
+    const updatedMrzLine = fullMRZLine.replace("CLCCLLLLLLLLLLLLLLLLLL", "<<<<<<<<<<<<<<<<<");
 
-    if (parsedMRZ) {
+    if (parsedMRZ.valid) {
       const fields = parsedMRZ.fields ?? {};
       const selectedFields: Record<string, string | undefined> = {
         Type: fields.documentCode ?? undefined,
@@ -109,7 +108,7 @@ const extractMRZText = async () => {
         "Date of Issue": formatDate(fields.issueDate),
         "Place of Birth": fields.birthPlace ?? undefined,
         "ISSUING AUTHORITY": fields.optional2 ?? undefined,
-        "Full MRZ Line": fullMRZLine,
+        "Full MRZ Line": updatedMrzLine,
       };
 
       setParsedData(selectedFields);
